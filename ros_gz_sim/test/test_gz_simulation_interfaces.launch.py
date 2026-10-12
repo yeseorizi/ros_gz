@@ -209,6 +209,7 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         self.assertAlmostEqual(state.twist.linear.x, 0.25, delta=1e-1)
 
     def test_get_entity_state_on_spawned_entity(self) -> None:
+        self.set_simulation_state(SimulationState.STATE_PLAYING)
         sdf_string = """
             <sdf version='1.12'>
                 <model name="sphere2">
@@ -243,9 +244,21 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         # valid identity quaternion explicitly.
         request.initial_pose.pose.orientation.w = 1.0
 
-        self.assertTrue(self.call_and_spin(spawn_entity, request))
-        time.sleep(2)
+        self.assert_result_ok(self.call_and_spin(spawn_entity, request))
         state = self.get_entity_state('test_sphere').state
+        start_time = state.header.stamp.sec + state.header.stamp.nanosec / 1e9
+        deadline = time.monotonic() + 10.0
+        # The sphere needs simulation time to reach and roll down the incline.
+        # A wall-clock sleep does not guarantee this on a loaded CI runner.
+        while True:
+            state = self.get_entity_state('test_sphere').state
+            sim_time = state.header.stamp.sec + state.header.stamp.nanosec / 1e9
+            if sim_time - start_time >= 2.0:
+                break
+            self.assertLess(
+                time.monotonic(), deadline,
+                'Simulation did not advance by two seconds before the deadline')
+            time.sleep(0.01)
         self.assertGreater(state.twist.linear.x, 0.1)
 
     def test_set_entity_state(self) -> None:
