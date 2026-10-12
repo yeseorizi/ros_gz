@@ -179,7 +179,6 @@ class TestGzSimulationInterfaces(unittest.TestCase):
                 self.get_simulation_state().state.state,
                 SimulationState.STATE_PLAYING)
 
-
     def test_reset_unsupported_scope(self) -> None:
         reset_simulation, request = self.setup_client(
             si.ResetSimulation, 'reset_simulation')
@@ -187,7 +186,6 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         response = self.call_and_spin(reset_simulation, request)
         self.assertIsNotNone(response)
         self.assertEqual(response.result.result, Result.RESULT_FEATURE_UNSUPPORTED)
-
 
     def test_resume_after_stop(self) -> None:
         try:
@@ -201,7 +199,6 @@ class TestGzSimulationInterfaces(unittest.TestCase):
             self.assert_simulation_advances()
         finally:
             self.set_simulation_state(SimulationState.STATE_PLAYING)
-
 
     def test_spawn_then_resume(self) -> None:
         try:
@@ -220,7 +217,6 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         finally:
             self.set_simulation_state(SimulationState.STATE_PLAYING)
 
-
     def test_stop_simulation_state(self) -> None:
         # Regression test for #919: transitioning from PLAYING to STOPPED must report success.
         try:
@@ -237,7 +233,6 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         finally:
             # Avoid leaking STOPPED even when an assertion fails.
             self.set_simulation_state(SimulationState.STATE_PLAYING)
-
 
     # tests
 
