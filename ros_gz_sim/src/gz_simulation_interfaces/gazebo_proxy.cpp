@@ -308,11 +308,8 @@ void GazeboProxy::HandleNewEntities()
 void GazeboProxy::InitializeAllCanonicalLinks()
 {
   RCLCPP_INFO(this->ros_node_->get_logger(), "InitializeCanonicalLinks");
-  std::vector<gz::sim::Entity> c_links;
-  {
-    std::lock_guard<std::mutex> lk(this->state_sync_mutex_);
-    c_links = this->ecm_.EntitiesByComponents(components::CanonicalLink());
-  }
+  std::lock_guard<std::mutex> lk(this->state_sync_mutex_);
+  const auto c_links = this->ecm_.EntitiesByComponents(components::CanonicalLink());
   this->InitializeCanonicalLinks({c_links.begin(), c_links.end()});
 }
 
