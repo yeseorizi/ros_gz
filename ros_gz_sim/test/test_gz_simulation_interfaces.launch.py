@@ -164,6 +164,81 @@ class TestGzSimulationInterfaces(unittest.TestCase):
         request.scope = si.ResetSimulation.Request.SCOPE_DEFAULT
         return self.call_and_spin(reset_simulation, request)
 
+    def assert_simulation_advances(self) -> None:
+        # Two advances distinguish sustained PLAYING from a queued pause after one step.
+        for _ in range(2):
+            initial_stamp = self.get_entity_state('vehicle').state.header.stamp
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                stamp = self.get_entity_state('vehicle').state.header.stamp
+                if (stamp.sec, stamp.nanosec) > (initial_stamp.sec, initial_stamp.nanosec):
+                    break
+            else:
+                self.fail('Simulation stopped advancing after resumption')
+            self.assertEqual(
+                self.get_simulation_state().state.state,
+                SimulationState.STATE_PLAYING)
+
+
+    def test_reset_unsupported_scope(self) -> None:
+        reset_simulation, request = self.setup_client(
+            si.ResetSimulation, 'reset_simulation')
+        request.scope = si.ResetSimulation.Request.SCOPE_TIME
+        response = self.call_and_spin(reset_simulation, request)
+        self.assertIsNotNone(response)
+        self.assertEqual(response.result.result, Result.RESULT_FEATURE_UNSUPPORTED)
+
+
+    def test_resume_after_stop(self) -> None:
+        try:
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+            self.set_simulation_state(SimulationState.STATE_STOPPED)
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+            self.assertEqual(
+                self.get_simulation_state().state.state,
+                SimulationState.STATE_PLAYING)
+            # Resumption must persist after pending synchronization is processed.
+            self.assert_simulation_advances()
+        finally:
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+
+
+    def test_spawn_then_resume(self) -> None:
+        try:
+            self.set_simulation_state(SimulationState.STATE_PAUSED)
+            spawn_entity, request = self.setup_client(si.SpawnEntity, 'spawn_entity')
+            request.name = 'pause_resume_probe'
+            request.entity_resource.resource_string = """
+                <sdf version='1.12'>
+                    <model name='pause_resume_probe'><link name='link'/></model>
+                </sdf>
+            """
+            request.initial_pose.pose.orientation.w = 1.0
+            self.assert_result_ok(self.call_and_spin(spawn_entity, request))
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+            self.assert_simulation_advances()
+        finally:
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+
+
+    def test_stop_simulation_state(self) -> None:
+        # Regression test for #919: transitioning from PLAYING to STOPPED must report success.
+        try:
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+            self.assertEqual(
+                self.get_simulation_state().state.state,
+                SimulationState.STATE_PLAYING)
+
+            for _ in range(2):
+                self.set_simulation_state(SimulationState.STATE_STOPPED)
+                self.assertEqual(
+                    self.get_simulation_state().state.state,
+                    SimulationState.STATE_STOPPED)
+        finally:
+            # Avoid leaking STOPPED even when an assertion fails.
+            self.set_simulation_state(SimulationState.STATE_PLAYING)
+
+
     # tests
 
     def test_get_entities_with_no_filters(self) -> None:
